@@ -187,7 +187,7 @@ class LearnFrame(ttk.Frame):
                         s_score = '{:5.1f}'.format(o['score'])
                     s += '  导入 {:4s} {:5s}  {:s}'.format(o.get('published', ''), s_score, o['comment'])
             else:
-                s = '{:s} {:s} 必须先代交作业才能导入成绩'.format(o['id'], hanzi_pad(o['name'], 6))
+                s = '{:s} {:s} 必须先交作业才能导入成绩'.format(o['id'], hanzi_pad(o['name'], 6))
             l.append(s)
         self.student_listvar.set(tuple(l))
 
