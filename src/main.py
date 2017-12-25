@@ -44,7 +44,7 @@ class LearnFrame(ttk.Frame):
         self.password_entry.grid(column=2, row=2, sticky=(W, E))
         self.login_button = ttk.Button(self, text='Login', command=self.login)
         self.login_button.grid(column=2, row=3, stick=E)
-        
+
         self.course_listbox = Listbox(self, height=6, width=35, listvariable=self.course_listvar, relief='sunken')
         self.course_listbox.grid(column=3, row=1, rowspan=3, padx=(5, 0), stick=(N, W, E, S))
         self.course_listbox.configure(exportselection=False)
@@ -52,7 +52,7 @@ class LearnFrame(ttk.Frame):
         s = ttk.Scrollbar(self, orient=VERTICAL, command=self.course_listbox.yview)
         s.grid(column=4, row=1, rowspan=3, sticky=(N,S))
         self.course_listbox['yscrollcommand'] = s.set
-        
+
         self.assignment_listbox = Listbox(self, height=6, width=35, listvariable=self.assignment_listvar, relief='sunken')
         self.assignment_listbox.grid(column=5, row=1, rowspan=3, padx=(5, 0), stick=(N, W, E, S))
         self.assignment_listbox.configure(exportselection=False)
@@ -60,7 +60,7 @@ class LearnFrame(ttk.Frame):
         s = ttk.Scrollbar(self, orient=VERTICAL, command=self.assignment_listbox.yview)
         s.grid(column=6, row=1, rowspan=3, sticky=(N,S))
         self.assignment_listbox['yscrollcommand'] = s.set
-        
+
         self.student_listbox = Listbox(self, height=20, listvariable=self.student_listvar, relief='sunken', font=font.Font(family='Consolas', size=11))
         self.student_listbox.grid(column=1, row=4, columnspan=5, pady=(10, 5), stick=(N, W, E, S))
         self.student_listbox.configure(exportselection=False)
@@ -72,7 +72,7 @@ class LearnFrame(ttk.Frame):
         self.readtxt_button.grid(column=1, row=5, stick=E)
         self.dopublish_button = ttk.Button(self, text='确认发布', command=self.do_publish)
         self.dopublish_button.grid(column=2, row=5, stick=W)
-        
+
         self.grid_columnconfigure(5, weight=1)
         self.grid_rowconfigure(4,weight=1)
 
@@ -143,7 +143,7 @@ class LearnFrame(ttk.Frame):
         self.student_listvar.set(())
         self.students = []
         return True
-    
+
     def load_assignments(self, *args):
         idxs = self.course_listbox.curselection()
         if 1 != len(idxs):
@@ -166,7 +166,7 @@ class LearnFrame(ttk.Frame):
         self.assignment_listbox.selection_clear(0, END)
         self.student_listvar.set(())
         self.students = []
-    
+
     def update_student_listvar(self):
         def hanzi_pad(text, length):
             a = 0
@@ -190,7 +190,7 @@ class LearnFrame(ttk.Frame):
                 s = '{:s} {:s} 必须先代交作业才能导入成绩'.format(o['id'], hanzi_pad(o['name'], 6))
             l.append(s)
         self.student_listvar.set(tuple(l))
-    
+
     def load_students(self, *args):
         idxs = self.assignment_listbox.curselection()
         if 1 != len(idxs):
@@ -222,7 +222,7 @@ class LearnFrame(ttk.Frame):
                 })
         self.update_student_listvar()
         self.student_listbox.selection_clear(0, END)
-    
+
     def read_txt(self, *args):
         if not self.students:
             self.info('先选择作业，再读入成绩', 'read txt before select assignment')
@@ -230,32 +230,41 @@ class LearnFrame(ttk.Frame):
         f = tkfiledialog.askopenfile(mode='rb')
         if f is None:
             return
+        content = f.read()
+        f.close()
+        try:
+            content = content.decode('utf-8')
+        except:
+            try:
+                content = content.decode('cp936')
+            except:
+                self.info('文件编码错误，请使用 utf-8 或 cp936 编码（优先 UTF-8）', 'input file encoding error')
+                return
         imported = []
-        with f: 
-            for line in f.read().strip().splitlines():
-                line = line.strip()
-                if line == '':
-                    continue
-                a = line.split(None, 2)
-                if len(a) < 2:
-                    self.info('格式错误，每行应为“学号 分数 评语”，分数为空可以用半角减号“-”代替，评语可省略。分数可以保留 1 位小数', 'ill formated')
-                    return
-                id = a[0].strip()
-                comment = a[2].strip() if 2 < len(a) else ''
-                try:
-                    b = a[1].strip()
-                    if b == '-':
-                        score = None
-                    else:
-                        score = float(b)
-                except:
-                    self.info('格式错误，每行应为“学号 分数 评语”，分数为空可以用半角减号“-”代替，评语可省略', 'ill formated')
-                    return
-                if score is not None and (score < 0 or score > 100):
-                    self.info('成绩必须在 0-100 范围内', 'ill formated')
-                    return
-                imported.append([id, score, comment])
-                
+        for line in content.strip().splitlines():
+            line = line.strip()
+            if line == '':
+                continue
+            a = line.split(None, 2)
+            if len(a) < 2:
+                self.info('格式错误，每行应为“学号 分数 评语”，分数为空可以用半角减号“-”代替，评语可省略。分数可以保留 1 位小数', 'ill formated')
+                return
+            id = a[0].strip()
+            comment = a[2].strip() if 2 < len(a) else ''
+            try:
+                b = a[1].strip()
+                if b == '-':
+                    score = None
+                else:
+                    score = float(b)
+            except:
+                self.info('格式错误，每行应为“学号 分数 评语”，分数为空可以用半角减号“-”代替，评语可省略', 'ill formated')
+                return
+            if score is not None and (score < 0 or score > 100):
+                self.info('成绩必须在 0-100 范围内', 'ill formated')
+                return
+            imported.append([id, score, comment])
+
         for o in self.students:
             for k in ('score', 'comment', 'published'):
                 if k in o:
