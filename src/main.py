@@ -258,7 +258,7 @@ class LearnFrame(ttk.Frame):
                 else:
                     score = float(b)
             except:
-                self.info('格式错误，每行应为“学号 分数 评语”，分数为空可以用半角减号“-”代替，评语可省略', 'ill formated')
+                self.info('格式错误，每行应为“学号 分数 评语”，分数为空可以用半角减号“-”代替，评语可省略。分数可以保留 1 位小数', 'ill formated')
                 return
             if score is not None and (score < 0 or score > 100):
                 self.info('成绩必须在 0-100 范围内', 'ill formated')
