@@ -5,12 +5,15 @@ from __future__ import division
 from __future__ import print_function
 from __future__ import unicode_literals
 
+import codecs
+import csv
 import os
 import re
 import threading
 
 from bs4 import BeautifulSoup
 from six.moves import http_cookiejar as cookielib
+from six.moves import queue
 from six.moves import tkinter_font as font
 from six.moves import tkinter_messagebox as messagebox
 from six.moves import tkinter_tkfiledialog as tkfiledialog
@@ -72,6 +75,8 @@ class LearnFrame(ttk.Frame):
         self.readtxt_button.grid(column=1, row=5, stick=E)
         self.dopublish_button = ttk.Button(self, text='确认发布', command=self.do_publish)
         self.dopublish_button.grid(column=2, row=5, stick=W)
+        self.exportcsv_button = ttk.Button(self, text='导出成绩', command=self.export_csv)
+        self.exportcsv_button.grid(column=3, row=5, stick=E)
 
         self.grid_columnconfigure(5, weight=1)
         self.grid_rowconfigure(4,weight=1)
@@ -79,6 +84,7 @@ class LearnFrame(ttk.Frame):
         self.try_load_courses()
 
     def init_settings(self):
+        self.dirname = '.'
         self.cookie_filename = 'cookie.txt'
         self.url_login = 'https://learn.tsinghua.edu.cn/MultiLanguage/lesson/teacher/loginteacher.jsp'
         self.url_logout = 'https://learn.tsinghua.edu.cn/MultiLanguage/lesson/logout.jsp'
@@ -86,6 +92,7 @@ class LearnFrame(ttk.Frame):
         self.url_assignmentlist = 'https://learn.tsinghua.edu.cn/MultiLanguage/lesson/teacher/hom_wk_brw.jsp?module_id=305&course_id={course_id}'
         self.url_studentlist = 'https://learn.tsinghua.edu.cn/MultiLanguage/lesson/teacher/hom_wk_reclist.jsp?id={assignment_id}&course_id={course_id}'
         self.url_homeworkmark = 'https://learn.tsinghua.edu.cn/MultiLanguage/lesson/teacher/hom_wk_recmark.jsp'
+        self.url_homeworkdetail = 'https://learn.tsinghua.edu.cn/MultiLanguage/lesson/teacher/hom_wk_recdetail.jsp?rec_id={rec_id}&course_id={course_id}'
 
     def info(self, text, trace):
         messagebox.showinfo('Info', text)
@@ -227,11 +234,15 @@ class LearnFrame(ttk.Frame):
         if not self.students:
             self.info('先选择作业，再读入成绩', 'read txt before select assignment')
             return
-        f = tkfiledialog.askopenfile(mode='rb')
+        f = tkfiledialog.askopenfile(mode='rb',
+                                     initialdir=self.dirname,
+                                     defaultextension='*.txt',
+                                     filetypes=(('Text file', '*.txt'), ('All types', '*.*')))
         if f is None:
             return
-        content = f.read()
-        f.close()
+        with f:
+            self.dirname = os.path.dirname(f.name)
+            content = f.read()
         try:
             content = content.decode('utf-8')
         except:
@@ -247,7 +258,7 @@ class LearnFrame(ttk.Frame):
                 continue
             a = line.split(None, 2)
             if len(a) < 2:
-                self.info('格式错误，每行应为“学号 分数 评语”，分数为空可以用半角减号“-”代替，评语可省略。分数可以保留 1 位小数', 'ill formated')
+                self.info('格式错误，每行应为“学号 分数 评语”，分数为空可以用半角减号“-”代替，评语可省略,分数可保留 1 位小数', 'ill formated')
                 return
             id = a[0].strip()
             comment = a[2].strip() if 2 < len(a) else ''
@@ -258,7 +269,7 @@ class LearnFrame(ttk.Frame):
                 else:
                     score = float(b)
             except:
-                self.info('格式错误，每行应为“学号 分数 评语”，分数为空可以用半角减号“-”代替，评语可省略。分数可以保留 1 位小数', 'ill formated')
+                self.info('格式错误，每行应为“学号 分数 评语”，分数为空可以用半角减号“-”代替，评语可省略,分数可保留 1 位小数', 'ill formated')
                 return
             if score is not None and (score < 0 or score > 100):
                 self.info('成绩必须在 0-100 范围内', 'ill formated')
@@ -293,6 +304,7 @@ class LearnFrame(ttk.Frame):
             self.assignment_listbox,
             self.readtxt_button,
             self.dopublish_button,
+            self.exportcsv_button,
         ]
         def target(course_id):
             for o in self.students:
@@ -313,13 +325,101 @@ class LearnFrame(ttk.Frame):
                     except:
                         o['published'] = 'FAIL'
                     self.update_student_listvar()
-            for elem in to_lock:
-                elem.config(state=NORMAL)
+            q.put(None)
         for elem in to_lock:
             elem.config(state=DISABLED)
+        q = queue.Queue()
+        def update(q):
+            try:
+                msg = q.get_nowait()
+                for elem in to_lock:
+                    elem.config(state=NORMAL)
+            except queue.Empty:
+                self.after(100, update, q)
         t = threading.Thread(target=target, args=(self.course_id,))
         t.start()
+        self.after(100, update, q)
 
+    def export_csv(self, *args):
+        to_lock = [
+            self.login_button,
+            self.course_listbox,
+            self.assignment_listbox,
+            self.readtxt_button,
+            self.dopublish_button,
+            self.exportcsv_button,
+        ]
+        def target(course_id):
+            rows = []
+            all_right = True
+            for o in self.students:
+                if o['submitted']:
+                    try:
+                        response = self.opener.open(self.url_homeworkdetail.format(
+                            rec_id=o['rec_id'], course_id=course_id))
+                        assert 200 == response.code
+                        the_page = self.html2unicode(response.read())
+                        soup = BeautifulSoup(the_page, 'html.parser')
+                        student_id = soup.select('#post_rec_student_id')[0]['value'].strip()
+                        assert student_id == o['id']
+                        answer = soup.select('textarea[readonly]')[0].text
+                        mark = soup.select('#post_rec_mark')[0]['value'].strip()
+                        reply = soup.select('#post_rec_reply_detail')[0].text
+                        rows.append([
+                            o['id'],
+                            o['name'],
+                            answer.strip(),
+                            mark,
+                            reply.strip(),
+                        ])
+                    except:
+                        rows.append([
+                            o['id'],
+                            o['name'],
+                        ])
+                        all_right = False
+            if not all_right:
+                q.put(('读取详细评语失败', 'open homework rec failed'))
+                return
+            with f:
+                f.write(codecs.BOM_UTF8)
+                writer = csv.writer(f)
+                writer.writerow([
+                    'id',
+                    'name',
+                    'answer',
+                    'mark',
+                    'reply',
+                ])
+                writer.writerows([[s.encode('utf-8') for s in row] for row in rows])
+            q.put(None)
+
+        try:
+            f = tkfiledialog.asksaveasfile(mode='wb',
+                                           initialdir=self.dirname,
+                                           defaultextension='*.csv',
+                                           filetypes=(('CSV file', '*.csv'), ('All types', '*.*')))
+        except IOError as e:
+            self.info(str(e), 'IOError')
+            return
+        if f is None:
+            return
+        self.dirname = os.path.dirname(f.name)
+        for elem in to_lock:
+            elem.config(state=DISABLED)
+        q = queue.Queue()
+        def update(q):
+            try:
+                msg = q.get_nowait()
+                if msg is not None:
+                    self.info(*msg)
+                for elem in to_lock:
+                    elem.config(state=NORMAL)
+            except queue.Empty:
+                self.after(100, update, q)
+        t = threading.Thread(target=target, args=(self.course_id,))
+        t.start()
+        self.after(100, update, q)
 
 root = Tk()
 root.title('Import')
