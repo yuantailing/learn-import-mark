@@ -5,7 +5,6 @@ from __future__ import division
 from __future__ import print_function
 from __future__ import unicode_literals
 
-import codecs
 import csv
 import os
 import re
@@ -115,7 +114,7 @@ class LearnFrame(ttk.Frame):
                     'userid': self.username.get(),
                     'userpass': self.password.get(),
             })
-            response = self.opener.open(request, data)
+            response = self.opener.open(request, data.encode('utf-8'))
             if 'window.alert' in self.html2unicode(response.read()):
                 self.info('login failed', 'login failed')
             else:
@@ -319,12 +318,11 @@ class LearnFrame(ttk.Frame):
                             'post_rec_reply_detail': o['comment'],
                             'course_id': course_id,
                             'post_homewkrec_id': o['rec_id']
-                        }))
+                        }).encode())
                         assert 200 == response.code
                         o['published'] = '[OK]'
                     except:
                         o['published'] = 'FAIL'
-                    self.update_student_listvar()
             q.put(None)
         for elem in to_lock:
             elem.config(state=DISABLED)
@@ -332,6 +330,7 @@ class LearnFrame(ttk.Frame):
         def update(q):
             try:
                 msg = q.get_nowait()
+                self.update_student_listvar()
                 for elem in to_lock:
                     elem.config(state=NORMAL)
             except queue.Empty:
@@ -382,8 +381,7 @@ class LearnFrame(ttk.Frame):
                 q.put(('读取详细评语失败', 'open homework rec failed'))
                 return
             with f:
-                f.write(codecs.BOM_UTF8)
-                writer = csv.writer(f)
+                writer = csv.writer(f, dialect='excel')
                 writer.writerow([
                     'id',
                     'name',
@@ -391,18 +389,18 @@ class LearnFrame(ttk.Frame):
                     'mark',
                     'reply',
                 ])
-                writer.writerows([[s.encode('utf-8') for s in row] for row in rows])
+                writer.writerows(rows)
             q.put(None)
 
         try:
-            f = tkfiledialog.asksaveasfile(mode='wb',
-                                           initialdir=self.dirname,
-                                           defaultextension='*.csv',
-                                           filetypes=(('CSV file', '*.csv'), ('All types', '*.*')))
+            fn = tkfiledialog.asksaveasfilename(initialdir=self.dirname,
+                                                defaultextension='*.csv',
+                                                filetypes=(('CSV file', '*.csv'), ('All types', '*.*')))
+            if fn is None:
+                return
+            f = open(fn, 'w', encoding='utf-8-sig', newline='')
         except IOError as e:
             self.info(str(e), 'IOError')
-            return
-        if f is None:
             return
         self.dirname = os.path.dirname(f.name)
         for elem in to_lock:
