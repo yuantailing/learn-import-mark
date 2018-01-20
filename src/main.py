@@ -5,9 +5,11 @@ from __future__ import division
 from __future__ import print_function
 from __future__ import unicode_literals
 
+import codecs
 import csv
 import os
 import re
+import six
 import threading
 
 from bs4 import BeautifulSoup
@@ -389,7 +391,10 @@ class LearnFrame(ttk.Frame):
                     'mark',
                     'reply',
                 ])
-                writer.writerows(rows)
+                if six.PY3:
+                    writer.writerows(rows)
+                else:
+                    writer.writerows([[s.encode('utf-8') for s in row] for row in rows])
             q.put(None)
 
         try:
@@ -398,7 +403,11 @@ class LearnFrame(ttk.Frame):
                                                 filetypes=(('CSV file', '*.csv'), ('All types', '*.*')))
             if fn is None:
                 return
-            f = open(fn, 'w', encoding='utf-8-sig', newline='')
+            if six.PY3:
+                f = open(fn, 'w', encoding='utf-8-sig', newline='')
+            else:
+                f = open(fn, 'wb')
+                f.write(codecs.BOM_UTF8)
         except IOError as e:
             self.info(str(e), 'IOError')
             return
