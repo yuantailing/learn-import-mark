@@ -331,8 +331,8 @@ class LearnFrame(ttk.Frame):
         q = queue.Queue()
         def update(q):
             try:
-                msg = q.get_nowait()
                 self.update_student_listvar()
+                msg = q.get_nowait()
                 for elem in to_lock:
                     elem.config(state=NORMAL)
             except queue.Empty:
@@ -401,7 +401,7 @@ class LearnFrame(ttk.Frame):
             fn = tkfiledialog.asksaveasfilename(initialdir=self.dirname,
                                                 defaultextension='*.csv',
                                                 filetypes=(('CSV file', '*.csv'), ('All types', '*.*')))
-            if fn is None:
+            if not fn:
                 return
             if six.PY3:
                 f = open(fn, 'w', encoding='utf-8-sig', newline='')
