@@ -136,7 +136,10 @@ class LearnFrame(ttk.Frame):
         for a in soup.select('td table a'):
             match = re.search('course_id=(\d+)', a['href'])
             if not match:
-                self.error('logic error', 'unexpected href')
+                if re.search('/f/teacher/coursehome', a['href']):
+                    continue
+                else:
+                    self.error('logic error', 'unexpected href')
             self.course_list.append({
                 'id': int(match.group(1)),
                 'name': a.text.strip(),
@@ -317,7 +320,7 @@ class LearnFrame(ttk.Frame):
                     try:
                         response = self.opener.open(self.url_homeworkmark, urllib.parse.urlencode({
                             'post_rec_mark': '{:f}'.format(o['score']) if o['score'] is not None else '',
-                            'post_rec_reply_detail': o['comment'],
+                            'post_rec_reply_detail': o['comment'].encode('utf-8'),
                             'course_id': course_id,
                             'post_homewkrec_id': o['rec_id']
                         }).encode())
