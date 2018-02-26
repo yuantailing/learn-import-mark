@@ -19,6 +19,7 @@ setup(
     options={
         'py2exe': {
             'includes': [
+                'Queue',
                 'Tkinter',
                 'cookielib',
                 'tkFont',
